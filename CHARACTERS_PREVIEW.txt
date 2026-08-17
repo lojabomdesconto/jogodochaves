@@ -1,0 +1,3 @@
+v8 preview: traffic cars replaced by Chaves-universe character karts.
+Player Chaves remains unchanged. All character traffic sprites are 1536x1024 source art rendered at the original logical size.
+Characters: quico, nhonho, seu_madruga, dona_florinda, popis, pati, professor_girafales, dona_clotilde, godines

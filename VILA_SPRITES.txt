@@ -1,0 +1,22 @@
+V10 - CENARIO INDIVIDUAL DA VILA DO CHAVES
+
+Esta versao substitui os sprites antigos de plantas/placas por sprites individuais da Vila.
+
+O sprites.png agora contem:
+- sprites originais do jogo (incluindo os karts)
+- sprites novos da Vila na parte inferior da mesma textura
+
+Sprites novos:
+- vila_casa_14.png
+- vila_casa_71.png
+- vila_casa_72.png
+- vila_churros.png
+- vila_arvore.png
+- vila_arvore_flores.png
+- vila_barril.png
+- vila_poste.png
+- vila_placa_vila.png
+- vila_placa_se_renta.png
+
+O jogo usa esses sprites diretamente no sistema de perspectiva da pista.
+A imagem vila_background.png continua sendo usada apenas como horizonte de fundo, enquanto os elementos laterais agora sao individuais.

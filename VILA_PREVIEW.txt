@@ -1,0 +1,9 @@
+V10 - Vila do Chaves scenery preview (corrigido)
+
+Correção: o pacote anterior ficou preso na tela azul porque o carregador de imagens
+do jogo aceita arquivos PNG (images/NOME.png), mas o preview da Vila havia sido
+incluído como JPG. Nesta versão o cenário está em PNG e o JavaScript foi validado.
+
+A imagem foi recortada para remover os elementos de HUD da referência e é usada
+somente no horizonte superior. A pista, física, controles e sprites dos personagens
+continuam baseados na versão v9 que estava funcionando.

@@ -1,0 +1,8 @@
+V14E - MINI-TURBO ITEM
+Base: V14D (stable)
+
+- ⚡ MINI-TURBO is now a short independent burst.
+- Use E or I after collecting it.
+- It does not consume the normal SPACE turbo charges.
+- Adds a lightweight blue particle burst.
+- Banana and item-turbo behavior remain unchanged.

@@ -1,0 +1,3 @@
+v9 performance optimization
+
+Character sprites are stored at 320x213 (4x the logical 80x53.33 render size) instead of 1536x1024. This preserves detail while dramatically reducing per-frame image scaling work. The original high-resolution character PNGs remain in images/sprites/ as source artwork.

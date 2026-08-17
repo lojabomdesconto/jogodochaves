@@ -1,0 +1,1342 @@
+<!DOCTYPE html> 
+
+<html>
+<head>
+  <title>Javascript Racer - v4 (final)</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <link href="common.css" rel="stylesheet" type="text/css" />
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #72D7EE;
+    }
+    #controls, #instructions, #mute { display: none !important; }
+    #racer {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      margin: 0;
+      border: 0;
+      overflow: hidden;
+    }
+    #canvas {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #72D7EE;
+    }
+    #hud {
+      width: 100%;
+    }
+
+    #race_hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 20;
+      font-family: Arial, sans-serif;
+    }
+    .race-pill {
+      position: absolute;
+      top: 18px;
+      padding: 8px 14px;
+      border-radius: 12px;
+      background: rgba(0,0,0,.58);
+      color: #fff;
+      font-weight: 800;
+      font-size: clamp(14px, 2vw, 22px);
+      text-shadow: 1px 2px 3px rgba(0,0,0,.7);
+      backdrop-filter: blur(4px);
+    }
+    #race_lap { left: 18px; }
+    #race_position { left: 18px; top: 62px; }
+    #race_speed { right: 18px; }
+    #countdown, #finish_message {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-weight: 900;
+      font-size: clamp(70px, 15vw, 180px);
+      text-shadow: 0 5px 15px rgba(0,0,0,.75);
+      letter-spacing: 2px;
+    }
+    #countdown { background: rgba(0,0,0,.08); }
+    #finish_message {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      font-size: clamp(44px, 9vw, 110px);
+      background: rgba(0,0,0,.28);
+    }
+    #finish_message small { font-size: clamp(18px, 3vw, 32px); }
+    #race_boost { right: 18px; top: 62px; min-width: 150px; text-align: center; }
+    #boost_bar { display: inline-block; width: 90px; height: 10px; margin-left: 8px; vertical-align: middle; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,.22); }
+    #boost_fill { display: block; height: 100%; width: 100%; border-radius: 8px; background: linear-gradient(90deg,#ffd21a,#ff7a00,#ff2d2d); transform-origin: left center; }
+    #drift_hint { position:absolute; left:50%; bottom:18px; transform:translateX(-50%); padding:7px 12px; border-radius:10px; background:rgba(0,0,0,.45); color:#fff; font-size:clamp(11px,1.5vw,16px); font-weight:700; opacity:.75; }
+  </style>
+</head> 
+
+<body> 
+
+  <table id="controls">
+    <tr>
+      <td colspan="2">
+        <a href='v1.straight.html'>straight</a> |
+        <a href='v2.curves.html'>curves</a>     |
+        <a href='v3.hills.html'>hills</a>       |
+        <a href='v4.final.html'>final</a>
+      </td>
+    </tr>
+    <tr><td id="fps" colspan="2" align="right"></td></tr>
+    <tr>
+      <th><label for="resolution">Resolution :</label></th>
+      <td>
+        <select id="resolution" style="width:100%">
+          <option value='fine'>Fine (1280x960)</option>
+          <option selected value='high'>High (1024x768)</option>
+          <option value='medium'>Medium (640x480)</option>
+          <option value='low'>Low (480x360)</option>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <th><label for="lanes">Lanes :</label></th>
+      <td>
+        <select id="lanes">
+          <option>1</option>
+          <option>2</option>
+          <option selected>3</option>
+          <option>4</option>
+        </select>
+      </td>
+    </tr>
+    <tr>
+      <th><label for="roadWidth">Road Width (<span id="currentRoadWidth"></span>) :</label></th>
+      <td><input id="roadWidth" type='range' min='500' max='3000' title="integer (500-3000)"></td>
+    </tr>
+    <tr>
+      <th><label for="cameraHeight">CameraHeight (<span id="currentCameraHeight"></span>) :</label></th>
+      <td><input id="cameraHeight" type='range' min='500' max='5000' title="integer (500-5000)"></td>
+    </tr>
+    <tr>
+      <th><label for="drawDistance">Draw Distance (<span id="currentDrawDistance"></span>) :</label></th>
+      <td><input id="drawDistance" type='range' min='100' max='500' title="integer (100-500)"></td>
+    </tr>
+    <tr>
+      <th><label for="fieldOfView">Field of View (<span id="currentFieldOfView"></span>) :</label></th>
+      <td><input id="fieldOfView" type='range' min='80' max='140' title="integer (80-140)"></td>
+    </tr>
+    <tr>
+      <th><label for="fogDensity">Fog Density (<span id="currentFogDensity"></span>) :</label></th>
+      <td><input id="fogDensity" type='range' min='0' max='50' title="integer (0-50)"></td>
+    </tr>
+  </table>
+
+  <div id='instructions'>
+    <p>Use the <b>arrow keys</b> to drive the car.</p>
+  </div>
+
+  <div id="racer">
+    <div id="hud">
+      <span id="speed"            class="hud"><span id="speed_value" class="value">0</span> mph</span>
+      <span id="current_lap_time" class="hud">Time: <span id="current_lap_time_value" class="value">0.0</span></span> 
+      <span id="last_lap_time"    class="hud">Last Lap: <span id="last_lap_time_value" class="value">0.0</span></span>
+      <span id="fast_lap_time"    class="hud">Fastest Lap: <span id="fast_lap_time_value" class="value">0.0</span></span>
+    </div>
+    <canvas id="canvas">
+      Sorry, this example cannot be run because your browser does not support the &lt;canvas&gt; element
+    </canvas>
+    <div id="race_hud">
+      <div id="race_lap" class="race-pill">VOLTA <span id="race_lap_value">1/3</span></div>
+      <div id="race_position" class="race-pill">POSIÇÃO <span id="race_position_value">1º</span></div>
+      <div id="race_speed" class="race-pill"><span id="race_speed_value">0</span> km/h</div>
+      <div id="race_boost" class="race-pill">TURBO <span id="boost_charges">★★★</span><span id="boost_bar"><span id="boost_fill"></span></span></div><div id="race_item" class="race-pill" style="right:18px;top:112px;min-width:150px;text-align:center;">ITEM <span id="race_item_value">—</span></div><div id="item_message" style="position:absolute;left:50%;top:22%;transform:translate(-50%,-50%);padding:10px 18px;border-radius:14px;background:rgba(0,0,0,.62);color:#fff;font:900 clamp(18px,3vw,34px) Arial,sans-serif;opacity:0;transition:opacity .12s;">📦 ITEM!</div>
+      <div id="drift_hint">SHIFT + ←/→ para derrapar • ESPAÇO para turbo</div>
+      <div id="countdown">3</div>
+      <div id="finish_message"><span id="finish_title">🏁 CHEGADA!</span><small id="finish_subtitle"></small></div>
+    </div>
+    Loading...
+  </div>
+
+  <audio id='music'>
+    <source src="music/racer.ogg">
+    <source src="music/racer.mp3">
+  </audio>
+  <span id="mute"></span>
+
+  <script src="stats.js"></script>
+  <script src="common.js"></script>
+  <script>
+
+    var fps            = 60;                      // how many 'update' frames per second
+    var step           = 1/fps;                   // how long is each frame (in seconds)
+    var width          = 1024;                    // logical canvas width
+    var height         = 768;                     // logical canvas height
+    var centrifugal    = 0.3;                     // centrifugal force multiplier when going around curves
+    var offRoadDecel   = 0.99;                    // speed multiplier when off road (e.g. you lose 2% speed each update frame)
+    var skySpeed       = 0.001;                   // background sky layer scroll speed when going around curve (or up hill)
+    var hillSpeed      = 0.002;                   // background hill layer scroll speed when going around curve (or up hill)
+    var treeSpeed      = 0.003;                   // background tree layer scroll speed when going around curve (or up hill)
+    var skyOffset      = 0;                       // current sky scroll offset
+    var hillOffset     = 0;                       // current hill scroll offset
+    var treeOffset     = 0;                       // current tree scroll offset
+    var segments       = [];                      // array of road segments
+    var cars           = [];                      // array of cars on the road
+    var stats          = Game.stats('fps');       // mr.doobs FPS counter
+    var canvas         = Dom.get('canvas');       // our canvas...
+    var ctx            = canvas.getContext('2d'); // ...and its drawing context
+    var background     = null;                    // our background image (loaded below)
+    var sprites        = null;                    // our spritesheet (loaded below)
+    var vilaBackground = null;                    // clean Vila scenery preview
+    var resolution     = null;                    // scaling factor to provide resolution independence (computed)
+    var roadWidth      = 2000;                    // actually half the roads width, easier math if the road spans from -roadWidth to +roadWidth
+    var segmentLength  = 200;                     // length of a single segment
+    var rumbleLength   = 3;                       // number of segments per red/white rumble strip
+    var trackLength    = null;                    // z length of entire track (computed)
+    var lanes          = 3;                       // number of lanes
+    var fieldOfView    = 100;                     // angle (degrees) for field of view
+    var cameraHeight   = 1000;                    // z height of camera
+    var cameraDepth    = null;                    // z distance camera is from screen (computed)
+    var drawDistance   = 300;                     // number of segments to draw
+    var playerX        = 0;                       // player x offset from center of road (-1 to 1 to stay independent of roadWidth)
+    var playerZ        = null;                    // player relative z distance from camera (computed)
+    var fogDensity     = 5;                       // exponential fog density
+    var position       = 0;                       // current camera Z position (add playerZ to get player's absolute Z position)
+    var speed          = 0;                       // current speed
+    var maxSpeed       = segmentLength/step;      // top speed (ensure we can't move more than 1 segment in a single frame to make collision detection easier)
+    var accel          =  maxSpeed/5;             // acceleration rate - tuned until it 'felt' right
+    var breaking       = -maxSpeed;               // deceleration rate when braking
+    var decel          = -maxSpeed/5;             // 'natural' deceleration rate when neither accelerating, nor braking
+    var offRoadDecel   = -maxSpeed/2;             // off road deceleration is somewhere in between
+    var offRoadLimit   =  maxSpeed/4;             // limit when off road deceleration no longer applies (e.g. you can always go at least this speed even when off road)
+    var totalCars      = 9;                       // one rival for each Chaves character
+    var currentLapTime = 0;                       // current lap time
+    var lastLapTime    = null;                    // last lap time
+    var totalLaps      = 3;                       // laps required to finish
+    var completedLaps  = 0;                       // laps already completed
+    var countdownTime  = 3.2;                     // pre-race countdown
+    var raceStarted    = false;                   // true after GO
+    var raceFinished   = false;                   // true after final lap
+    var raceStartTime  = 0;
+    var finishTime     = 0;
+    // V14A: visual item boxes only (no collection logic yet).
+    var itemBoxes      = [];
+    var itemBoxSize    = 0.95;
+    var heldItem       = null;
+    var itemMessageTimer = 0;
+    var itemRespawnTime = 0;
+    var bananaDrops = [];
+    var itemUseHeld = false;
+
+    var raceHud = {
+      lap: Dom.get('race_lap_value'),
+      position: Dom.get('race_position_value'),
+      speed: Dom.get('race_speed_value'),
+      boostCharges: Dom.get('boost_charges'),
+      boostFill: Dom.get('boost_fill'),
+      item: Dom.get('race_item_value'),
+      itemMessage: Dom.get('item_message'),
+      countdown: Dom.get('countdown'),
+      finish: Dom.get('finish_message'),
+      finishTitle: Dom.get('finish_title'),
+      finishSubtitle: Dom.get('finish_subtitle')
+    };
+
+    var keyLeft        = false;
+    var keyRight       = false;
+    var keyFaster      = false;
+    var keySlower      = false;
+    var keyDrift       = false;
+    var keyBoostHeld   = false;
+    var boostCharges   = 3;
+    var maxBoostCharges = 3;
+    var boostTimer     = 0;
+    var boostCooldown  = 0;
+    var driftCharge    = 0;
+    var driftDirection = 0;
+    var drifting       = false;
+    var particles      = [];
+
+    // V15: lightweight character-specific AI. Each rival has a distinct
+    // driving personality, but the logic stays deterministic and cheap.
+    var AI_PROFILES = [
+      { name:'Quico',              max:0.99, accel:1.05, curve:0.90, aggression:0.90 },
+      { name:'Nhonho',             max:1.05, accel:0.95, curve:0.78, aggression:0.55 },
+      { name:'Seu Madruga',        max:0.94, accel:0.92, curve:1.08, aggression:0.72 },
+      { name:'Dona Florinda',      max:1.00, accel:1.00, curve:1.16, aggression:0.82 },
+      { name:'Pópis',              max:0.96, accel:1.08, curve:1.02, aggression:0.48 },
+      { name:'Pati',               max:0.99, accel:1.00, curve:0.94, aggression:0.64 },
+      { name:'Professor Girafales',max:1.06, accel:0.90, curve:0.92, aggression:0.42 },
+      { name:'Dona Clotilde',      max:0.95, accel:0.96, curve:1.10, aggression:0.60 },
+      { name:'Godínez',            max:1.01, accel:1.12, curve:0.80, aggression:1.00 }
+    ];
+
+    var hud = {
+      speed:            { value: null, dom: Dom.get('speed_value')            },
+      current_lap_time: { value: null, dom: Dom.get('current_lap_time_value') },
+      last_lap_time:    { value: null, dom: Dom.get('last_lap_time_value')    },
+      fast_lap_time:    { value: null, dom: Dom.get('fast_lap_time_value')    }
+    }
+
+    //=========================================================================
+    // UPDATE THE GAME WORLD
+    //=========================================================================
+
+    function update(dt) {
+
+      // Countdown: the player cannot move until GO.
+      if (!raceStarted && !raceFinished) {
+        countdownTime -= dt;
+        if (countdownTime > 2) {
+          raceHud.countdown.textContent = '3';
+        } else if (countdownTime > 1) {
+          raceHud.countdown.textContent = '2';
+        } else if (countdownTime > 0) {
+          raceHud.countdown.textContent = '1';
+        } else if (countdownTime > -0.65) {
+          raceHud.countdown.textContent = 'VAI!';
+        } else {
+          raceStarted = true;
+          raceStartTime = 0;
+          raceHud.countdown.style.display = 'none';
+        }
+        speed = 0;
+        updateRaceHud();
+        return;
+      }
+
+      if (raceFinished) {
+        speed = 0;
+        updateRaceHud();
+        return;
+      }
+
+      // Turbo timer/cooldown. Space consumes one of three charges.
+      if (boostTimer > 0) boostTimer = Math.max(0, boostTimer - dt);
+      if (boostCooldown > 0) boostCooldown = Math.max(0, boostCooldown - dt);
+      var effectiveMaxSpeed = maxSpeed * (boostTimer > 0 ? 1.28 : 1);
+
+      drifting = keyDrift && (keyLeft || keyRight) && speed > maxSpeed * 0.30;
+      if (drifting) {
+        driftDirection = keyLeft ? -1 : 1;
+        driftCharge = Math.min(1.25, driftCharge + dt);
+      } else if (driftCharge > 0) {
+        if (driftCharge > 0.42 && speed > maxSpeed * 0.25) {
+          speed = Math.min(speed + maxSpeed * Math.min(0.20, driftCharge * 0.16), maxSpeed * 1.12);
+          boostTimer = Math.max(boostTimer, Math.min(0.55, driftCharge * 0.32));
+          spawnBoostBurst();
+        }
+        driftCharge = 0;
+      }
+
+      updateParticles(dt);
+      var n, car, carW, sprite, spriteW;
+      var playerSegment = findSegment(position+playerZ);
+      var playerW       = SPRITES.PLAYER_STRAIGHT.w * SPRITES.SCALE;
+      var speedPercent  = speed/maxSpeed;
+      var dx            = dt * 2 * speedPercent; // at top speed, should be able to cross from left to right (-1 to 1) in 1 second
+      if (drifting) dx *= 1.28;
+      var startPosition = position;
+
+      updateCars(dt, playerSegment, playerW);
+
+      position = Util.increase(position, dt * speed, trackLength);
+
+      // V14B: collect an item box when the player reaches its segment.
+      updateItemBoxes(playerSegment, playerX, playerW, dt);
+      updateBananas(playerSegment, playerX, playerW, dt);
+
+      if (keyLeft)
+        playerX = playerX - dx;
+      else if (keyRight)
+        playerX = playerX + dx;
+
+      playerX = playerX - (dx * speedPercent * playerSegment.curve * centrifugal);
+
+      if (keyFaster)
+        speed = Util.accelerate(speed, accel * (drifting ? 0.82 : 1), dt);
+      else if (keySlower)
+        speed = Util.accelerate(speed, breaking, dt);
+      else
+        speed = Util.accelerate(speed, decel * (drifting ? 0.55 : 1), dt);
+
+      if (drifting && Math.random() < 0.55) spawnSkidSparks();
+
+
+      if ((playerX < -1) || (playerX > 1)) {
+
+        if (speed > offRoadLimit)
+          speed = Util.accelerate(speed, offRoadDecel, dt);
+
+        for(n = 0 ; n < playerSegment.sprites.length ; n++) {
+          sprite  = playerSegment.sprites[n];
+          spriteW = sprite.source.w * SPRITES.SCALE;
+          if (Util.overlap(playerX, playerW, sprite.offset + spriteW/2 * (sprite.offset > 0 ? 1 : -1), spriteW)) {
+            speed = maxSpeed/5;
+            position = Util.increase(playerSegment.p1.world.z, -playerZ, trackLength); // stop in front of sprite (at front of segment)
+            break;
+          }
+        }
+      }
+
+      for(n = 0 ; n < playerSegment.cars.length ; n++) {
+        car  = playerSegment.cars[n];
+        carW = car.sprite.w * SPRITES.SCALE;
+        if (speed > car.speed) {
+          if (Util.overlap(playerX, playerW, car.offset, carW, 0.8)) {
+            speed    = car.speed * (car.speed/speed);
+            position = Util.increase(car.z, -playerZ, trackLength);
+            break;
+          }
+        }
+      }
+
+      playerX = Util.limit(playerX, -3, 3);     // dont ever let it go too far out of bounds
+      speed   = Util.limit(speed, 0, effectiveMaxSpeed); // turbo temporarily raises the ceiling
+
+      skyOffset  = Util.increase(skyOffset,  skySpeed  * playerSegment.curve * (position-startPosition)/segmentLength, 1);
+      hillOffset = Util.increase(hillOffset, hillSpeed * playerSegment.curve * (position-startPosition)/segmentLength, 1);
+      treeOffset = Util.increase(treeOffset, treeSpeed * playerSegment.curve * (position-startPosition)/segmentLength, 1);
+
+      // Detect crossing the start/finish line when the camera position wraps.
+      if (startPosition > position) {
+        completedLaps++;
+        if (completedLaps >= totalLaps) {
+          completedLaps = totalLaps;
+          raceFinished = true;
+          finishTime = raceStartTime + currentLapTime;
+          speed = 0;
+          raceHud.finishTitle.textContent = '🏁 CHEGADA!';
+          raceHud.finishSubtitle.textContent = 'Tempo: ' + formatTime(finishTime) + ' — pressione R para correr novamente';
+          raceHud.finish.style.display = 'flex';
+        }
+      }
+
+      if (position > playerZ) {
+        if (currentLapTime && (startPosition < playerZ)) {
+          lastLapTime    = currentLapTime;
+          currentLapTime = 0;
+          if (lastLapTime <= Util.toFloat(Dom.storage.fast_lap_time)) {
+            Dom.storage.fast_lap_time = lastLapTime;
+            updateHud('fast_lap_time', formatTime(lastLapTime));
+            Dom.addClassName('fast_lap_time', 'fastest');
+            Dom.addClassName('last_lap_time', 'fastest');
+          }
+          else {
+            Dom.removeClassName('fast_lap_time', 'fastest');
+            Dom.removeClassName('last_lap_time', 'fastest');
+          }
+          updateHud('last_lap_time', formatTime(lastLapTime));
+          Dom.show('last_lap_time');
+        }
+        else {
+          currentLapTime += dt;
+        }
+      }
+
+      raceStartTime += dt;
+      updateHud('speed',            5 * Math.round(speed/500));
+      updateHud('current_lap_time', formatTime(currentLapTime));
+      updateRaceHud();
+    }
+
+    function updateRaceHud() {
+      var lapDisplay = Math.min(totalLaps, completedLaps + 1);
+      raceHud.lap.textContent = lapDisplay + '/' + totalLaps;
+      raceHud.speed.textContent = Math.round(5 * speed / 500);
+      raceHud.position.textContent = getRacePosition() + 'º';
+      raceHud.boostCharges.textContent = '★'.repeat(boostCharges) + '☆'.repeat(maxBoostCharges - boostCharges);
+      var fill = Math.max(0, Math.min(1, boostCharges / maxBoostCharges));
+      if (boostCooldown > 0 && boostCharges < maxBoostCharges) fill = Math.max(0.08, fill + (1 - boostCooldown / 2.2) / maxBoostCharges);
+      raceHud.boostFill.style.transform = 'scaleX(' + fill.toFixed(3) + ')';
+      raceHud.item.textContent = heldItem ? heldItem.label : '—';
+      if (itemMessageTimer > 0) {
+        itemMessageTimer = Math.max(0, itemMessageTimer - (1/60));
+        raceHud.itemMessage.style.opacity = itemMessageTimer > 0 ? '1' : '0';
+      }
+      Dom.get('drift_hint').style.opacity = drifting ? '1' : '.72';
+    }
+
+    function updateItemBoxes(playerSegment, playerXValue, playerWValue, dt) {
+      if (!itemBoxes.length || !trackLength) return;
+
+      var currentIndex = playerSegment.index;
+      for (var i = 0; i < itemBoxes.length; i++) {
+        var box = itemBoxes[i];
+
+        if (box.respawn > 0) {
+          box.respawn = Math.max(0, box.respawn - dt);
+          if (box.respawn === 0) box.collected = false;
+          continue;
+        }
+        if (box.collected) continue;
+
+        var distance = (box.segmentIndex - currentIndex + segments.length) % segments.length;
+        // The player occupies roughly the current segment and the next few
+        // while moving quickly. Keep the collision narrow to avoid accidental pickups.
+        if (distance <= 2 || distance >= segments.length - 1) {
+          if (Util.overlap(playerXValue, playerWValue, box.offset, 0.20, 1.0)) {
+            collectItemBox(box);
+            break;
+          }
+        }
+      }
+    }
+
+    function collectItemBox(box) {
+      box.collected = true;
+      box.respawn = 7.0;
+
+      var choices = [
+        { id: 'banana', label: '🍌 BANANA' },
+        { id: 'turbo',  label: '🔥 TURBO' },
+        { id: 'mini',   label: '⚡ MINI-TURBO' }
+      ];
+      heldItem = Util.randomChoice(choices);
+      itemMessageTimer = 1.25;
+      raceHud.itemMessage.textContent = '📦 ' + heldItem.label;
+      raceHud.itemMessage.style.opacity = '1';
+
+      // Restore the box after a short delay without affecting the race loop.
+      // Its collected flag is cleared when the respawn timer expires.
+    }
+
+    function updateItemRespawns(dt) {
+      for (var i = 0; i < itemBoxes.length; i++) {
+        var box = itemBoxes[i];
+        if (box.respawn > 0) {
+          box.respawn = Math.max(0, box.respawn - dt);
+          if (box.respawn === 0) box.collected = false;
+        }
+      }
+    }
+
+    function useHeldItem() {
+      if (!raceStarted || raceFinished || !heldItem) return;
+      var item = heldItem.id;
+      heldItem = null;
+      itemMessageTimer = 0.7;
+      raceHud.itemMessage.textContent = '';
+      raceHud.itemMessage.style.opacity = '1';
+
+      if (item === 'banana') {
+        var current = findSegment(position + playerZ);
+        var dropIndex = (current.index - 2 + segments.length) % segments.length;
+        bananaDrops.push({
+          segmentIndex: dropIndex,
+          offset: Util.limit(playerX, -1.15, 1.15),
+          life: 18,
+          hit: false
+        });
+        raceHud.itemMessage.textContent = '🍌 BANANA!';
+      }
+      else if (item === 'turbo') {
+        activateItemTurbo();
+        raceHud.itemMessage.textContent = '🔥 TURBO!';
+      }
+      else if (item === 'mini') {
+        activateItemMiniTurbo();
+        raceHud.itemMessage.textContent = '⚡ MINI-TURBO!';
+      }
+      updateRaceHud();
+    }
+
+    function updateBananas(playerSegment, playerXValue, playerWValue, dt) {
+      if (!bananaDrops.length) return;
+      for (var i = bananaDrops.length - 1; i >= 0; i--) {
+        var banana = bananaDrops[i];
+        banana.life -= dt;
+        if (banana.life <= 0) {
+          bananaDrops.splice(i, 1);
+          continue;
+        }
+
+        var distance = (banana.segmentIndex - playerSegment.index + segments.length) % segments.length;
+        if (!banana.hit && (distance <= 1 || distance >= segments.length - 1) &&
+            Util.overlap(playerXValue, playerWValue, banana.offset, 0.18, 0.85)) {
+          banana.hit = true;
+          speed = Math.min(speed, maxSpeed * 0.34);
+          playerX = Util.limit(playerX + (playerXValue >= banana.offset ? 0.08 : -0.08), -3, 3);
+          spawnSkidSparks();
+          raceHud.itemMessage.textContent = '🍌 OPA!';
+          itemMessageTimer = 0.8;
+        }
+
+        // Light interaction with AI cars: a banana only affects a car once.
+        if (!banana.hit) {
+          var seg = segments[banana.segmentIndex];
+          if (seg && seg.cars) {
+            for (var c = 0; c < seg.cars.length; c++) {
+              var car = seg.cars[c];
+              if (Math.abs(car.offset - banana.offset) < 0.22 && Math.abs(car.z - (banana.segmentIndex * segmentLength)) < segmentLength * 1.2) {
+                car.speed = Math.max(maxSpeed * 0.12, car.speed * 0.45);
+                banana.hit = true;
+                spawnSkidSparks();
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    function getRacePosition() {
+      if (!trackLength) return 1;
+      var playerProgress = completedLaps * trackLength + ((position + playerZ) % trackLength);
+      var ahead = 0;
+      for (var i = 0; i < cars.length; i++) {
+        var c = cars[i];
+        var progress = (c.laps || 0) * trackLength + c.z;
+        if (progress > playerProgress + 1) ahead++;
+      }
+      return Math.min(cars.length + 1, ahead + 1);
+    }
+
+    //-------------------------------------------------------------------------
+
+    function updateCars(dt, playerSegment, playerW) {
+      var n, car, oldSegment, newSegment;
+      for(n = 0 ; n < cars.length ; n++) {
+        car         = cars[n];
+        oldSegment  = findSegment(car.z);
+        car.prevZ   = car.z;
+
+        updateCarAI(car, dt, oldSegment, playerSegment);
+        car.offset  = Util.limit(car.offset + updateCarOffset(car, oldSegment, playerSegment, playerW), -0.88, 0.88);
+        car.z       = Util.increase(car.z, dt * car.speed, trackLength);
+
+        if (car.z < car.prevZ) car.laps = (car.laps || 0) + 1;
+        car.percent = Util.percentRemaining(car.z, segmentLength);
+        newSegment  = findSegment(car.z);
+        if (oldSegment != newSegment) {
+          var index = oldSegment.cars.indexOf(car);
+          if (index >= 0) oldSegment.cars.splice(index, 1);
+          newSegment.cars.push(car);
+        }
+      }
+    }
+
+    // Character-specific driving: speed through curves, acceleration on
+    // straights, gentle lane changes and a small catch-up effect.
+    function updateCarAI(car, dt, carSegment, playerSegment) {
+      var profile = car.ai || AI_PROFILES[0];
+      var curveAmount = Math.min(1, Math.abs(carSegment.curve) / ROAD.CURVE.HARD);
+      var curveFactor = 1 - curveAmount * (1 - profile.curve) * 0.42;
+      var target = maxSpeed * profile.max * curveFactor;
+
+      // Small rubber-band effect prevents a rival from becoming irrelevant
+      // after a bad start, while preserving different character speeds.
+      var playerProgress = (completedLaps * trackLength) + ((position + playerZ) % trackLength);
+      var carProgress = ((car.laps || 0) * trackLength) + car.z;
+      var gap = playerProgress - carProgress;
+      if (gap > trackLength * 0.16) target *= 1.035;
+      else if (gap < -trackLength * 0.12) target *= 0.985;
+
+      // Avoid sudden speed changes when a rival has just hit a banana.
+      var acceleration = maxSpeed * 0.80 * profile.accel;
+      if (car.speed < target)
+        car.speed = Math.min(target, car.speed + acceleration * dt);
+      else
+        car.speed = Math.max(target, car.speed - acceleration * 1.25 * dt);
+
+      // Think only a few times per second; this keeps AI inexpensive.
+      car.aiThink = (car.aiThink || 0) - dt;
+      if (car.aiThink <= 0) {
+        car.aiThink = 0.16 + Math.random() * 0.12;
+        var desiredLane = car.aiLane || 0;
+        var current = car.offset;
+
+        // Prefer a different lane when approaching a slower car.
+        var blocked = false;
+        for (var i=1; i<9; i++) {
+          var seg = segments[(carSegment.index+i)%segments.length];
+          for (var j=0; j<seg.cars.length; j++) {
+            var other = seg.cars[j];
+            if (other === car) continue;
+            var laneGap = Math.abs(other.offset - current);
+            if (other.speed < car.speed && laneGap < 0.22) {
+              blocked = true;
+              break;
+            }
+          }
+          if (blocked) break;
+        }
+
+        if (blocked && Math.random() < profile.aggression) {
+          desiredLane = current >= 0 ? -0.58 : 0.58;
+        } else if (Math.abs(current) > 0.72) {
+          desiredLane = 0;
+        } else if (Math.random() < 0.28) {
+          desiredLane = Util.randomChoice([-0.58, 0, 0.58]);
+        }
+        car.aiLane = desiredLane;
+      }
+
+      var steerRate = (0.55 + profile.aggression * 0.35) * dt;
+      car.offset += Util.limit((car.aiLane || 0) - car.offset, -steerRate, steerRate);
+
+      // Gentle anticipation of the road curve so the rival looks like it is
+      // actually driving the track rather than sliding sideways on it.
+      car.offset -= carSegment.curve * 0.0045 * profile.aggression;
+    }
+
+    function updateCarOffset(car, carSegment, playerSegment, playerW) {
+
+      var i, j, dir, segment, otherCar, otherCarW, lookahead = 20, carW = car.sprite.w * SPRITES.SCALE;
+
+      // optimization, dont bother steering around other cars when 'out of sight' of the player
+      if ((carSegment.index - playerSegment.index) > drawDistance)
+        return 0;
+
+      for(i = 1 ; i < lookahead ; i++) {
+        segment = segments[(carSegment.index+i)%segments.length];
+
+        if ((segment === playerSegment) && (car.speed > speed) && (Util.overlap(playerX, playerW, car.offset, carW, 1.2))) {
+          if (playerX > 0.5)
+            dir = -1;
+          else if (playerX < -0.5)
+            dir = 1;
+          else
+            dir = (car.offset > playerX) ? 1 : -1;
+          return dir * 1/i * (car.speed-speed)/maxSpeed; // the closer the cars (smaller i) and the greated the speed ratio, the larger the offset
+        }
+
+        for(j = 0 ; j < segment.cars.length ; j++) {
+          otherCar  = segment.cars[j];
+          otherCarW = otherCar.sprite.w * SPRITES.SCALE;
+          if ((car.speed > otherCar.speed) && Util.overlap(car.offset, carW, otherCar.offset, otherCarW, 1.2)) {
+            if (otherCar.offset > 0.5)
+              dir = -1;
+            else if (otherCar.offset < -0.5)
+              dir = 1;
+            else
+              dir = (car.offset > otherCar.offset) ? 1 : -1;
+            return dir * 1/i * (car.speed-otherCar.speed)/maxSpeed;
+          }
+        }
+      }
+
+      // if no cars ahead, but I have somehow ended up off road, then steer back on
+      if (car.offset < -0.9)
+        return 0.1;
+      else if (car.offset > 0.9)
+        return -0.1;
+      else
+        return 0;
+    }
+
+    //-------------------------------------------------------------------------
+
+    function activateBoost() {
+      if (!raceStarted || raceFinished || boostCharges <= 0 || boostCooldown > 0) return;
+      boostCharges--;
+      boostTimer = 1.15;
+      boostCooldown = 2.2;
+      speed = Math.min(speed + maxSpeed * 0.28, maxSpeed * 1.28);
+      spawnBoostBurst();
+    }
+
+    // V14D: item turbo is separate from the normal SPACE turbo charges.
+    // It gives a full burst without consuming the player's three regular boosts.
+    function activateItemTurbo() {
+      if (!raceStarted || raceFinished) return;
+      boostTimer = Math.max(boostTimer, 1.35);
+      speed = Math.min(speed + maxSpeed * 0.34, maxSpeed * 1.30);
+      spawnBoostBurst();
+    }
+
+    // V14E: short independent item burst; normal SPACE turbo charges are untouched.
+    function activateItemMiniTurbo() {
+      if (!raceStarted || raceFinished) return;
+      speed = Math.min(speed + maxSpeed * 0.20, maxSpeed * 1.10);
+      boostTimer = Math.max(boostTimer, 0.38);
+      spawnMiniBoostBurst();
+    }
+
+    function spawnMiniBoostBurst() {
+      for (var i=0; i<10; i++) particles.push({ type:'mini', x:(Math.random()-.5)*.5, y:.84+Math.random()*.07, life:.22+Math.random()*.20, max:.42, vx:(Math.random()-.5)*1.0, vy:.25+Math.random()*.8 });
+    }
+
+    function spawnSkidSparks() {
+      var count = 2;
+      for (var i=0; i<count; i++) particles.push({ type:'spark', x:Math.random()*2-1, y:0.88+Math.random()*.08, life:.28+Math.random()*.22, max:.5, vx:(Math.random()-.5)*.9, vy:-.2-Math.random()*.7 });
+    }
+
+    function spawnBoostBurst() {
+      for (var i=0; i<18; i++) particles.push({ type:'boost', x:(Math.random()-.5)*.7, y:.83+Math.random()*.08, life:.35+Math.random()*.35, max:.7, vx:(Math.random()-.5)*1.3, vy:.3+Math.random()*1.1 });
+    }
+
+    function updateParticles(dt) {
+      for (var i=particles.length-1; i>=0; i--) {
+        var p=particles[i]; p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=.7*dt;
+        if (p.life<=0) particles.splice(i,1);
+      }
+      if (particles.length>90) particles.splice(0, particles.length-90);
+    }
+
+    function renderParticles() {
+      if (!particles.length) return;
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      for (var i=0;i<particles.length;i++) {
+        var p=particles[i], a=Math.max(0,p.life/p.max);
+        var px=width/2 + p.x*width*.18;
+        var py=height*(p.y);
+        ctx.globalAlpha=a;
+        ctx.fillStyle=p.type==='boost' ? '#ffd21a' : (p.type==='mini' ? '#8fe7ff' : '#ffffff');
+        var size=p.type==='boost' ? 4+10*a : (p.type==='mini' ? 3+7*a : 2+5*a);
+        ctx.beginPath(); ctx.arc(px,py,size,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function updateHud(key, value) { // accessing DOM can be slow, so only do it if value has changed
+      if (hud[key].value !== value) {
+        hud[key].value = value;
+        Dom.set(hud[key].dom, value);
+      }
+    }
+
+    function formatTime(dt) {
+      var minutes = Math.floor(dt/60);
+      var seconds = Math.floor(dt - (minutes * 60));
+      var tenths  = Math.floor(10 * (dt - Math.floor(dt)));
+      if (minutes > 0)
+        return minutes + "." + (seconds < 10 ? "0" : "") + seconds + "." + tenths;
+      else
+        return seconds + "." + tenths;
+    }
+
+    //=========================================================================
+    // RENDER THE GAME WORLD
+    //=========================================================================
+
+    function render() {
+
+      var baseSegment   = findSegment(position);
+      var basePercent   = Util.percentRemaining(position, segmentLength);
+      var playerSegment = findSegment(position+playerZ);
+      var playerPercent = Util.percentRemaining(position+playerZ, segmentLength);
+      var playerY       = Util.interpolate(playerSegment.p1.world.y, playerSegment.p2.world.y, playerPercent);
+      var maxy          = height;
+
+      var x  = 0;
+      var dx = - (baseSegment.curve * basePercent);
+
+      ctx.clearRect(0, 0, width, height);
+
+      // Vila preview: clean scenery in the upper horizon.
+      // The original road projection and gameplay rendering remain intact.
+      if (vilaBackground) {
+        ctx.save();
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        var villageH = Math.max(240, Math.floor(height * 0.58));
+        ctx.drawImage(vilaBackground, 0, 0, vilaBackground.width, vilaBackground.height, 0, 0, width, villageH);
+        ctx.restore();
+      } else {
+        Render.background(ctx, background, width, height, BACKGROUND.SKY,   skyOffset,  resolution * skySpeed  * playerY);
+        Render.background(ctx, background, width, height, BACKGROUND.HILLS, hillOffset, resolution * hillSpeed * playerY);
+        Render.background(ctx, background, width, height, BACKGROUND.TREES, treeOffset, resolution * treeSpeed * playerY);
+      }
+
+      var n, i, segment, car, sprite, spriteScale, spriteX, spriteY;
+
+      for(n = 0 ; n < drawDistance ; n++) {
+
+        segment        = segments[(baseSegment.index + n) % segments.length];
+        segment.looped = segment.index < baseSegment.index;
+        segment.fog    = Util.exponentialFog(n/drawDistance, fogDensity);
+        segment.clip   = maxy;
+
+        Util.project(segment.p1, (playerX * roadWidth) - x,      playerY + cameraHeight, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+        Util.project(segment.p2, (playerX * roadWidth) - x - dx, playerY + cameraHeight, position - (segment.looped ? trackLength : 0), cameraDepth, width, height, roadWidth);
+
+        x  = x + dx;
+        dx = dx + segment.curve;
+
+        if ((segment.p1.camera.z <= cameraDepth)         || // behind us
+            (segment.p2.screen.y >= segment.p1.screen.y) || // back face cull
+            (segment.p2.screen.y >= maxy))                  // clip by (already rendered) hill
+          continue;
+
+        Render.segment(ctx, width, lanes,
+                       segment.p1.screen.x,
+                       segment.p1.screen.y,
+                       segment.p1.screen.w,
+                       segment.p2.screen.x,
+                       segment.p2.screen.y,
+                       segment.p2.screen.w,
+                       segment.fog,
+                       segment.color);
+
+        maxy = segment.p1.screen.y;
+      }
+
+      for(n = (drawDistance-1) ; n > 0 ; n--) {
+        segment = segments[(baseSegment.index + n) % segments.length];
+
+        for(i = 0 ; i < segment.cars.length ; i++) {
+          car         = segment.cars[i];
+          sprite      = car.sprite;
+          spriteScale = Util.interpolate(segment.p1.screen.scale, segment.p2.screen.scale, car.percent);
+          spriteX     = Util.interpolate(segment.p1.screen.x,     segment.p2.screen.x,     car.percent) + (spriteScale * car.offset * roadWidth * width/2);
+          spriteY     = Util.interpolate(segment.p1.screen.y,     segment.p2.screen.y,     car.percent);
+          Render.sprite(ctx, width, height, resolution, roadWidth, sprites, car.sprite, spriteScale, spriteX, spriteY, -0.5, -1, segment.clip);
+        }
+
+        for(i = 0 ; i < segment.sprites.length ; i++) {
+          sprite      = segment.sprites[i];
+          spriteScale = segment.p1.screen.scale;
+          spriteX     = segment.p1.screen.x + (spriteScale * sprite.offset * roadWidth * width/2);
+          spriteY     = segment.p1.screen.y;
+          Render.sprite(ctx, width, height, resolution, roadWidth, sprites, sprite.source, spriteScale, spriteX, spriteY, (sprite.offset < 0 ? -1 : 0), -1, segment.clip);
+        }
+
+        if (segment == playerSegment) {
+          Render.player(ctx, width, height, resolution, roadWidth, sprites, speed/maxSpeed,
+                        cameraDepth/playerZ,
+                        width/2,
+                        (height/2) - (cameraDepth/playerZ * Util.interpolate(playerSegment.p1.camera.y, playerSegment.p2.camera.y, playerPercent) * height/2),
+                        speed * (keyLeft ? -1 : keyRight ? 1 : 0),
+                        playerSegment.p2.world.y - playerSegment.p1.world.y);
+        }
+      }
+      // V14A: draw item boxes as lightweight Canvas graphics.
+      renderItemBoxes();
+      renderBananas();
+      renderParticles();
+    }
+
+    function renderItemBoxes() {
+      if (!itemBoxes.length) return;
+      for (var b = 0; b < itemBoxes.length; b++) {
+        var box = itemBoxes[b];
+        if (box.collected) continue;
+        var seg = segments[box.segmentIndex];
+        if (!seg || seg.p1.camera.z <= cameraDepth || seg.p2.screen.y >= seg.p1.screen.y || seg.p2.screen.y >= seg.clip) continue;
+        var scale = seg.p1.screen.scale;
+        var x = seg.p1.screen.x + scale * box.offset * roadWidth * width/2;
+        var y = seg.p1.screen.y;
+        var size = Math.max(10, scale * width * 0.075 * itemBoxSize);
+        if (y < 0 || y > height + size) continue;
+        ctx.save();
+        ctx.translate(x, y - size * 0.55);
+        ctx.rotate(Math.sin((seg.index + box.offset) * 0.15) * 0.08);
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, 1 - seg.fog));
+        ctx.fillStyle = '#ffd83d';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = Math.max(1, size * 0.07);
+        ctx.beginPath();
+        ctx.roundRect(-size/2, -size/2, size, size, size * 0.12);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#7b3cff';
+        ctx.font = 'bold ' + Math.max(10, size * 0.48) + 'px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', 0, 1);
+        ctx.restore();
+      }
+    }
+
+    function renderBananas() {
+      if (!bananaDrops.length) return;
+      for (var b = 0; b < bananaDrops.length; b++) {
+        var banana = bananaDrops[b];
+        if (banana.hit) continue;
+        var seg = segments[banana.segmentIndex];
+        if (!seg || seg.p1.camera.z <= cameraDepth || seg.p2.screen.y >= seg.p1.screen.y || seg.p2.screen.y >= seg.clip) continue;
+        var scale = seg.p1.screen.scale;
+        var x = seg.p1.screen.x + scale * banana.offset * roadWidth * width/2;
+        var y = seg.p1.screen.y;
+        var size = Math.max(8, scale * width * 0.052);
+        if (y < -size || y > height + size) continue;
+        ctx.save();
+        ctx.translate(x, y - size * 0.42);
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, 1 - seg.fog));
+        ctx.fillStyle = '#f4c51b';
+        ctx.strokeStyle = '#5f8f2a';
+        ctx.lineWidth = Math.max(1, size * 0.09);
+        ctx.beginPath();
+        ctx.arc(-size*0.12, 0, size*0.22, 0.15*Math.PI, 1.55*Math.PI);
+        ctx.arc(size*0.08, -size*0.02, size*0.22, 1.55*Math.PI, 0.15*Math.PI);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.ellipse(0, size*0.03, size*0.42, size*0.22, -0.25, 0, Math.PI*2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    function findSegment(z) {
+      return segments[Math.floor(z/segmentLength) % segments.length]; 
+    }
+
+    //=========================================================================
+    // BUILD ROAD GEOMETRY
+    //=========================================================================
+
+    function lastY() { return (segments.length == 0) ? 0 : segments[segments.length-1].p2.world.y; }
+
+    function addSegment(curve, y) {
+      var n = segments.length;
+      segments.push({
+          index: n,
+             p1: { world: { y: lastY(), z:  n   *segmentLength }, camera: {}, screen: {} },
+             p2: { world: { y: y,       z: (n+1)*segmentLength }, camera: {}, screen: {} },
+          curve: curve,
+        sprites: [],
+           cars: [],
+          color: Math.floor(n/rumbleLength)%2 ? COLORS.DARK : COLORS.LIGHT
+      });
+    }
+
+    function addSprite(n, sprite, offset) {
+      segments[n].sprites.push({ source: sprite, offset: offset });
+    }
+
+    function addRoad(enter, hold, leave, curve, y) {
+      var startY   = lastY();
+      var endY     = startY + (Util.toInt(y, 0) * segmentLength);
+      var n, total = enter + hold + leave;
+      for(n = 0 ; n < enter ; n++)
+        addSegment(Util.easeIn(0, curve, n/enter), Util.easeInOut(startY, endY, n/total));
+      for(n = 0 ; n < hold  ; n++)
+        addSegment(curve, Util.easeInOut(startY, endY, (enter+n)/total));
+      for(n = 0 ; n < leave ; n++)
+        addSegment(Util.easeInOut(curve, 0, n/leave), Util.easeInOut(startY, endY, (enter+hold+n)/total));
+    }
+
+    var ROAD = {
+      LENGTH: { NONE: 0, SHORT:  25, MEDIUM:   50, LONG:  100 },
+      HILL:   { NONE: 0, LOW:    20, MEDIUM:   40, HIGH:   60 },
+      CURVE:  { NONE: 0, EASY:    2, MEDIUM:    4, HARD:    6 }
+    };
+
+    function addStraight(num) {
+      num = num || ROAD.LENGTH.MEDIUM;
+      addRoad(num, num, num, 0, 0);
+    }
+
+    function addHill(num, height) {
+      num    = num    || ROAD.LENGTH.MEDIUM;
+      height = height || ROAD.HILL.MEDIUM;
+      addRoad(num, num, num, 0, height);
+    }
+
+    function addCurve(num, curve, height) {
+      num    = num    || ROAD.LENGTH.MEDIUM;
+      curve  = curve  || ROAD.CURVE.MEDIUM;
+      height = height || ROAD.HILL.NONE;
+      addRoad(num, num, num, curve, height);
+    }
+        
+    function addLowRollingHills(num, height) {
+      num    = num    || ROAD.LENGTH.SHORT;
+      height = height || ROAD.HILL.LOW;
+      addRoad(num, num, num,  0,                height/2);
+      addRoad(num, num, num,  0,               -height);
+      addRoad(num, num, num,  ROAD.CURVE.EASY,  height);
+      addRoad(num, num, num,  0,                0);
+      addRoad(num, num, num, -ROAD.CURVE.EASY,  height/2);
+      addRoad(num, num, num,  0,                0);
+    }
+
+    function addSCurves() {
+      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,  -ROAD.CURVE.EASY,    ROAD.HILL.NONE);
+      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,   ROAD.CURVE.MEDIUM,  ROAD.HILL.MEDIUM);
+      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,   ROAD.CURVE.EASY,   -ROAD.HILL.LOW);
+      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,  -ROAD.CURVE.EASY,    ROAD.HILL.MEDIUM);
+      addRoad(ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM, ROAD.LENGTH.MEDIUM,  -ROAD.CURVE.MEDIUM, -ROAD.HILL.MEDIUM);
+    }
+
+    function addBumps() {
+      addRoad(10, 10, 10, 0,  5);
+      addRoad(10, 10, 10, 0, -2);
+      addRoad(10, 10, 10, 0, -5);
+      addRoad(10, 10, 10, 0,  8);
+      addRoad(10, 10, 10, 0,  5);
+      addRoad(10, 10, 10, 0, -7);
+      addRoad(10, 10, 10, 0,  5);
+      addRoad(10, 10, 10, 0, -2);
+    }
+
+    function addDownhillToEnd(num) {
+      num = num || 200;
+      addRoad(num, num, num, -ROAD.CURVE.EASY, -lastY()/segmentLength);
+    }
+
+    function resetRoad() {
+      segments = [];
+
+      addStraight(ROAD.LENGTH.SHORT);
+      addLowRollingHills();
+      addSCurves();
+      addCurve(ROAD.LENGTH.MEDIUM, ROAD.CURVE.MEDIUM, ROAD.HILL.LOW);
+      addBumps();
+      addLowRollingHills();
+      addCurve(ROAD.LENGTH.LONG*2, ROAD.CURVE.MEDIUM, ROAD.HILL.MEDIUM);
+      addStraight();
+      addHill(ROAD.LENGTH.MEDIUM, ROAD.HILL.HIGH);
+      addSCurves();
+      addCurve(ROAD.LENGTH.LONG, -ROAD.CURVE.MEDIUM, ROAD.HILL.NONE);
+      addHill(ROAD.LENGTH.LONG, ROAD.HILL.HIGH);
+      addCurve(ROAD.LENGTH.LONG, ROAD.CURVE.MEDIUM, -ROAD.HILL.LOW);
+      addBumps();
+      addHill(ROAD.LENGTH.LONG, -ROAD.HILL.MEDIUM);
+      addStraight();
+      addSCurves();
+      addDownhillToEnd();
+
+      resetSprites();
+      resetCars();
+
+      segments[findSegment(playerZ).index + 2].color = COLORS.START;
+      segments[findSegment(playerZ).index + 3].color = COLORS.START;
+      for(var n = 0 ; n < rumbleLength ; n++)
+        segments[segments.length-1-n].color = COLORS.FINISH;
+
+      trackLength = segments.length * segmentLength;
+    }
+
+    function resetSprites() {
+      var n, i;
+      itemBoxes = [];
+
+      addSprite(20,  SPRITES.BILLBOARD07, -1);
+      // Vila do Chaves scenery: only the new individual village sprites are used.
+      addSprite(40,  SPRITES.VILA_CASA_14, -1.6);
+      addSprite(65,  SPRITES.VILA_CASA_71,  1.7);
+      addSprite(90,  SPRITES.VILA_CHURROS, -1.8);
+      addSprite(115, SPRITES.VILA_CASA_72,  1.8);
+      addSprite(145, SPRITES.VILA_PLACA_VILA, -1.4);
+      addSprite(175, SPRITES.VILA_PLACA_SE_RENTA, 1.5);
+      addSprite(240, SPRITES.VILA_CHURROS, 1.7);
+      // V14A: lightweight item-box preview positions. These are visual only.
+      var boxPositions = [55, 105, 155, 205, 275, 335, 395, 455, 515, 575, 635, 695, 755, 815, 875, 935];
+      for (i = 0; i < boxPositions.length; i++) {
+        if (boxPositions[i] < segments.length)
+          itemBoxes.push({ segmentIndex: boxPositions[i], offset: (i % 2 === 0 ? -0.55 : 0.55), collected: false, respawn: 0 });
+      }
+      addSprite(240, SPRITES.VILA_CASA_14, -1.8);
+      addSprite(segments.length - 25, SPRITES.VILA_CASA_71, -1.8);
+      addSprite(segments.length - 25, SPRITES.VILA_CASA_72, 1.8);
+
+      for(n = 10 ; n < 220 ; n += 5 + Math.floor(n/120)) {
+        addSprite(n, SPRITES.VILA_ARVORE, Util.randomChoice([1,-1]) * (1.6 + Math.random()*1.8));
+        if (n % 3 === 0)
+          addSprite(n + 1, SPRITES.VILA_ARVORE_FLORES, Util.randomChoice([1,-1]) * (2.4 + Math.random()*1.2));
+      }
+
+      for(n = 250 ; n < 1000 ; n += 8) {
+        addSprite(n, SPRITES.VILA_ARVORE, -1.3 - (Math.random() * 2));
+        addSprite(n + Util.randomInt(0,3), SPRITES.VILA_BARRIL, 1.3 + (Math.random() * 2));
+        if (n % 24 === 0)
+          addSprite(n, SPRITES.VILA_POSTE, Util.randomChoice([1,-1]) * (2.0 + Math.random()));
+      }
+
+      for(n = 200 ; n < segments.length ; n += 4) {
+        addSprite(n, Util.randomChoice(SPRITES.VILA_PLANTS), Util.randomChoice([1,-1]) * (2 + Math.random() * 4));
+      }
+
+      var side, sprite, offset;
+      for(n = 1000 ; n < (segments.length-50) ; n += 90) {
+        side = Util.randomChoice([1, -1]);
+        addSprite(n + Util.randomInt(0, 40), Util.randomChoice(SPRITES.VILA_BILLBOARDS), side * (1.4 + Math.random()*0.7));
+        for(i = 0 ; i < 8 ; i++) {
+          sprite = Util.randomChoice(SPRITES.VILA_PLANTS);
+          offset = side * (1.5 + Math.random());
+          addSprite(n + Util.randomInt(0, 50), sprite, offset);
+        }
+      }
+
+    }
+
+    function resetCars() {
+      cars = [];
+      var n, car, segment, offset, z, sprite, speed;
+      var startSpacing = Math.max(18, Math.floor(segments.length / (totalCars + 2)));
+      for (var n = 0 ; n < totalCars ; n++) {
+        var profile = AI_PROFILES[n % AI_PROFILES.length];
+        // Put the nine named rivals at predictable starting gaps so the race
+        // feels intentional instead of like random traffic.
+        z      = ((n + 3) * startSpacing + Util.randomInt(0, 8)) * segmentLength;
+        z      = z % (segments.length * segmentLength) || (n + 2) * segmentLength;
+        sprite = SPRITES.CARS[n % SPRITES.CARS.length];
+        offset = [-0.58, 0, 0.58][n % 3] + (Math.random() - 0.5) * 0.08;
+        speed  = maxSpeed * (0.58 + Math.random() * 0.08) * profile.max;
+        car = {
+          offset: offset,
+          z: z,
+          prevZ: z,
+          laps: 0,
+          sprite: sprite,
+          speed: speed,
+          ai: profile,
+          aiLane: offset,
+          aiThink: Math.random() * 0.2,
+          name: profile.name
+        };
+        segment = findSegment(car.z);
+        segment.cars.push(car);
+        cars.push(car);
+      }
+    }
+
+    //=========================================================================
+    // THE GAME LOOP
+    //=========================================================================
+
+
+    // Responsive viewport: keep the original game logic, but make the
+    // rendering target match the browser viewport automatically.
+    function resizeGameToViewport() {
+      var newWidth  = Math.max(320, Math.floor(window.innerWidth));
+      var newHeight = Math.max(240, Math.floor(window.innerHeight));
+
+      // Avoid rebuilding the road; reset() only updates projection/canvas
+      // dimensions when width/height are supplied.
+      if (newWidth !== width || newHeight !== height) {
+        reset({ width: newWidth, height: newHeight });
+      } else {
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+      }
+    }
+
+    Game.run({
+      canvas: canvas, render: render, update: update, stats: stats, step: step,
+      images: ["background", "sprites", "vila_background"],
+      keys: [
+        { keys: [KEY.LEFT,  KEY.A], mode: 'down', action: function() { keyLeft   = true;  } },
+        { keys: [KEY.RIGHT, KEY.D], mode: 'down', action: function() { keyRight  = true;  } },
+        { keys: [KEY.UP,    KEY.W], mode: 'down', action: function() { keyFaster = true;  } },
+        { keys: [KEY.DOWN,  KEY.S], mode: 'down', action: function() { keySlower = true;  } },
+        { keys: [KEY.LEFT,  KEY.A], mode: 'up',   action: function() { keyLeft   = false; } },
+        { keys: [KEY.RIGHT, KEY.D], mode: 'up',   action: function() { keyRight  = false; } },
+        { keys: [KEY.UP,    KEY.W], mode: 'up',   action: function() { keyFaster = false; } },
+        { keys: [KEY.DOWN,  KEY.S], mode: 'up',   action: function() { keySlower = false; } },
+        { keys: [KEY.SHIFT],         mode: 'down', action: function() { keyDrift = true; } },
+        { keys: [KEY.SHIFT],         mode: 'up',   action: function() { keyDrift = false; } },
+        { keys: [KEY.SPACE],         mode: 'down', action: function() { if (!keyBoostHeld) { keyBoostHeld = true; activateBoost(); } } },
+        { keys: [KEY.SPACE],         mode: 'up',   action: function() { keyBoostHeld = false; } },
+        { keys: [69, 73],               mode: 'down', action: function() { if (!itemUseHeld) { itemUseHeld = true; useHeldItem(); } } },
+        { keys: [69, 73],               mode: 'up',   action: function() { itemUseHeld = false; } }
+      ],
+      ready: function(images) {
+        background = images[0];
+        sprites    = images[1];
+        vilaBackground = images[2];
+        reset();
+        resizeGameToViewport();
+        Dom.storage.fast_lap_time = Dom.storage.fast_lap_time || 180;
+        updateHud('fast_lap_time', formatTime(Util.toFloat(Dom.storage.fast_lap_time)));
+      }
+    });
+
+    window.addEventListener('keydown', function(ev) {
+      if (ev.keyCode === 82 && raceFinished) {
+        reset();
+      }
+    });
+
+    window.addEventListener('resize', resizeGameToViewport);
+    window.addEventListener('orientationchange', function() {
+      setTimeout(resizeGameToViewport, 50);
+    });
+
+    function reset(options) {
+      options       = options || {};
+      canvas.width  = width  = Util.toInt(options.width,          width);
+      canvas.height = height = Util.toInt(options.height,         height);
+      lanes                  = Util.toInt(options.lanes,          lanes);
+      roadWidth              = Util.toInt(options.roadWidth,      roadWidth);
+      cameraHeight           = Util.toInt(options.cameraHeight,   cameraHeight);
+      drawDistance           = Util.toInt(options.drawDistance,   drawDistance);
+      fogDensity             = Util.toInt(options.fogDensity,     fogDensity);
+      fieldOfView            = Util.toInt(options.fieldOfView,    fieldOfView);
+      segmentLength          = Util.toInt(options.segmentLength,  segmentLength);
+      rumbleLength           = Util.toInt(options.rumbleLength,   rumbleLength);
+      cameraDepth            = 1 / Math.tan((fieldOfView/2) * Math.PI/180);
+      playerZ                = (cameraHeight * cameraDepth);
+      resolution             = height/480;
+      completedLaps          = 0;
+      countdownTime          = 3.2;
+      raceStarted            = false;
+      raceFinished           = false;
+      raceStartTime          = 0;
+      finishTime             = 0;
+      boostCharges           = maxBoostCharges;
+      boostTimer             = 0;
+      boostCooldown          = 0;
+      driftCharge            = 0;
+      driftDirection         = 0;
+      particles              = [];
+      heldItem               = null;
+      bananaDrops          = [];
+      itemUseHeld          = false;
+      itemMessageTimer       = 0;
+      itemRespawnTime        = 0;
+      keyDrift               = false;
+      keyBoostHeld           = false;
+      raceHud.countdown.style.display = 'flex';
+      raceHud.countdown.textContent = '3';
+      raceHud.finish.style.display = 'none';
+      updateRaceHud();
+      refreshTweakUI();
+
+      if ((segments.length==0) || (options.segmentLength) || (options.rumbleLength))
+        resetRoad(); // only rebuild road when necessary
+    }
+
+    //=========================================================================
+    // TWEAK UI HANDLERS
+    //=========================================================================
+
+    Dom.on('resolution', 'change', function(ev) {
+      var w, h, ratio;
+      switch(ev.target.options[ev.target.selectedIndex].value) {
+        case 'fine':   w = 1280; h = 960;  ratio=w/width; break;
+        case 'high':   w = 1024; h = 768;  ratio=w/width; break;
+        case 'medium': w = 640;  h = 480;  ratio=w/width; break;
+        case 'low':    w = 480;  h = 360;  ratio=w/width; break;
+      }
+      reset({ width: w, height: h })
+      Dom.blur(ev);
+    });
+
+    Dom.on('lanes',          'change', function(ev) { Dom.blur(ev); reset({ lanes:         ev.target.options[ev.target.selectedIndex].value }); });
+    Dom.on('roadWidth',      'change', function(ev) { Dom.blur(ev); reset({ roadWidth:     Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+    Dom.on('cameraHeight',   'change', function(ev) { Dom.blur(ev); reset({ cameraHeight:  Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+    Dom.on('drawDistance',   'change', function(ev) { Dom.blur(ev); reset({ drawDistance:  Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+    Dom.on('fieldOfView',    'change', function(ev) { Dom.blur(ev); reset({ fieldOfView:   Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+    Dom.on('fogDensity',     'change', function(ev) { Dom.blur(ev); reset({ fogDensity:    Util.limit(Util.toInt(ev.target.value), Util.toInt(ev.target.getAttribute('min')), Util.toInt(ev.target.getAttribute('max'))) }); });
+
+    function refreshTweakUI() {
+      Dom.get('lanes').selectedIndex = lanes-1;
+      Dom.get('currentRoadWidth').innerHTML      = Dom.get('roadWidth').value      = roadWidth;
+      Dom.get('currentCameraHeight').innerHTML   = Dom.get('cameraHeight').value   = cameraHeight;
+      Dom.get('currentDrawDistance').innerHTML   = Dom.get('drawDistance').value   = drawDistance;
+      Dom.get('currentFieldOfView').innerHTML    = Dom.get('fieldOfView').value    = fieldOfView;
+      Dom.get('currentFogDensity').innerHTML     = Dom.get('fogDensity').value     = fogDensity;
+    }
+
+    //=========================================================================
+
+  </script>
+
+</body> 
+</html>

@@ -1,0 +1,11 @@
+V13 — Turbo, derrapagem e efeitos
+
+CONTROLES:
+- Setas ou A/D: dirigir
+- W/Seta para cima: acelerar
+- S/Seta para baixo: frear
+- SHIFT + esquerda/direita: derrapar
+- ESPAÇO: turbo (3 cargas por corrida)
+- R: reiniciar após a chegada
+
+O turbo e a derrapagem usam Canvas/CSS, sem novos sprites pesados.
